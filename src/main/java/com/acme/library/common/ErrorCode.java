@@ -1,0 +1,14 @@
+package com.acme.library.common;
+
+public enum ErrorCode {
+    NOT_FOUND,
+    VALIDATION_FAILED,
+    INTERNAL_ERROR,
+
+    ISBN_ALREADY_EXISTS,
+    NO_COPIES_AVAILABLE,
+    LOAN_LIMIT_REACHED,
+    MEMBER_HAS_OVERDUE_LOANS,
+    RENEWAL_NOT_ALLOWED,
+    ACTIVE_LOANS_EXIST
+}
