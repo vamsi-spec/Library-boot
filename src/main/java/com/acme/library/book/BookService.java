@@ -70,7 +70,7 @@ public class BookService {
     }
 
     public void delete(long id) {
-        bookRepository.deleteById(id, book -> {                
+        bookRepository.deleteById(id, book -> {
                     if (book.copiesOnLoan() > 0) {
                         throw new BusinessRuleException(ErrorCode.ACTIVE_LOANS_EXIST,
                                 "Book " + id + " has " + book.copiesOnLoan()
