@@ -1,5 +1,7 @@
 package com.acme.library.member;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,6 +31,12 @@ public class InMemoryMemberRepository implements MemberRepository {
 
     public Optional<Member> findById(long id) {
         return Optional.ofNullable(members.get(id));
+    }
+
+    public List<Member> findAll() {
+        return members.values().stream()
+                .sorted(Comparator.comparingLong(Member::id))
+                .toList();
     }
 
     public Optional<Member> update(long id, UnaryOperator<Member> change) {
