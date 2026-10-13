@@ -5,8 +5,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 import org.springframework.stereotype.Repository;
@@ -51,13 +52,22 @@ public class InMemoryBookRepository implements BookRepository{
         return Optional.ofNullable(updated);
     }
 
-    public boolean deleteById(long id) {
-        Book removed = books.remove(id);
-        if (removed == null) {
-            return false;
+    public Optional<Book> deleteById(long id, Consumer<Book> guard) {
+        AtomicReference<Book> removed = new AtomicReference<>();
+
+        books.computeIfPresent(id, (key, current) -> {
+            guard.accept(current);
+            removed.set(current);
+            return null;
+        });
+
+        Book book = removed.get();
+        if(book == null) {
+            return Optional.empty();
         }
-        idByIsbn.remove(removed.isbn());                        
-        return true;
+
+        idByIsbn.remove(book.isbn());
+        return Optional.of(book);
     }
 
 }

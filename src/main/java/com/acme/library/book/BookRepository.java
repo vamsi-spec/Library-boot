@@ -2,6 +2,7 @@ package com.acme.library.book;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 public interface BookRepository {
@@ -14,5 +15,5 @@ public interface BookRepository {
 
     Optional<Book> update(long id, UnaryOperator<Book> change);
 
-    boolean deleteById(long id);
+    Optional<Book> deleteById(long id, Consumer<Book> guard);
 }
