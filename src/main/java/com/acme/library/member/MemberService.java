@@ -53,4 +53,21 @@ public class MemberService {
             }
         }).orElseThrow(() -> new ResourceNotFoundException("Member", id));
     }
+
+    public Member reserveLoanSlot(long memberId, int maxActiveLoans) {
+        return memberRepository.update(memberId, current -> {
+            if(!current.isActive()) {
+                throw new BusinessRuleException(ErrorCode.MEMBER_SUSPENDED, "Member "+ memberId +" is Suspended");
+            }
+            if(current.activeLoans() >= maxActiveLoans) {
+                throw new BusinessRuleException(ErrorCode.LOAN_LIMIT_REACHED, "Member "+ memberId +" has reached maximum loan limit");
+            }
+
+            return new Member(current.id(), current.name(), current.email(), current.status(), current.activeLoans() + 1, current.joinedAt());
+        }).orElseThrow(() -> new ResourceNotFoundException("Member", memberId));
+    }
+
+    public Member releaseLoanSlot(long memberId) {
+        return memberRepository.update(memberId, current -> new Member(current.id(), current.name(),current.email(), current.status(), current.activeLoans() - 1, current.joinedAt())).orElseThrow(() -> new IllegalStateException("Member " + memberId + "disappeared while one of its loans was being returned"));
+    }
 }

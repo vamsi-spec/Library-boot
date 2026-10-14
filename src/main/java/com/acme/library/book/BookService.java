@@ -79,4 +79,18 @@ public class BookService {
                 })
                 .orElseThrow(() -> new ResourceNotFoundException("Book", id));
     }
+
+    public Book reserveCopy(long bookId) {
+        return bookRepository.update(bookId, current -> {
+            if(!current.isAvailable()) {
+                throw new BusinessRuleException(ErrorCode.NO_COPIES_AVAILABLE, "No copies of book" + bookId + "are available");
+            }
+
+            return new Book(current.id(), current.isbn(), current.title(), current.author(), current.totalCopies(), current.availableCopies() - 1, current.createdAt());
+        }).orElseThrow(() -> new ResourceNotFoundException("book", bookId));
+    }
+
+    public Book releaseCopy(long bookId) {
+        return bookRepository.update(bookId, current -> new Book(current.id(), current.isbn(), current.title(), current.author(), current.totalCopies(), current.availableCopies() + 1, current.createdAt())).orElseThrow(() -> new IllegalStateException("Book " + bookId + " disappeared while one of its copies was on loan"));
+    }
 }
