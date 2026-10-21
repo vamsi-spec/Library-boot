@@ -3,6 +3,7 @@ package com.acme.library.loan;
 import java.net.URI;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -43,5 +45,22 @@ public class LoanController {
     @PostMapping("/{id}/return")
     public LoanResponse returnLoan(@PathVariable long id) {
         return LoanResponse.from(loanService.returnLoan(id), LocalDate.now(clock));
+    }
+
+    @GetMapping 
+    public List<LoanResponse> list(
+        @RequestParam(required = false) Long memberId,
+        @RequestParam(required = false) Long bookId,
+        @RequestParam(required = false) LoanStatus status,
+        @RequestParam(required = false) Boolean overdue
+    ) {
+        LocalDate today = LocalDate.now(clock);
+        return loanService.search(memberId, bookId, status, overdue).stream().map(loan -> LoanResponse.from(loan, today)).toList();
+
+    }
+
+    @PostMapping("/{id}/renew")
+    public LoanResponse renew(@PathVariable long id) {
+        return LoanResponse.from(loanService.renew(id), LocalDate.now(clock));
     }
 }

@@ -91,8 +91,13 @@ public class LoanService {
         return loanRepository.findByID(id).orElseThrow(() -> new ResourceNotFoundException("Loan", id));
     }
 
-    public List<Loan> findAll() {
-        return loanRepository.findAll();
+    public List<Loan> search(Long memberId, Long bookId, LoanStatus status, Boolean overdue) {
+        LocalDate today = LocalDate.now(clock);
+        return loanRepository.findAll().stream().filter(loan -> memberId == null || loan.memberId() == memberId)
+            .filter(loan -> bookId == null || loan.bookId() == bookId)
+            .filter(loan -> status == null || loan.status() == status)
+            .filter(loan -> overdue == null || loan.isOverDue(today))
+            .toList();
     }
 
     private void undo(RuntimeException original, Runnable compensation) {
@@ -103,5 +108,29 @@ public class LoanService {
         }
     }
 
+    public Loan renew(long loanId) {
+        LocalDate today = LocalDate.now(clock);
+        int maxRenewals = libraryProperties.loan().maxRenewals();
+        int renewalDays = libraryProperties.loan().renewalDays();
 
+        return loanRepository.update(loanId, current -> {
+            if(!current.isActive()) {
+                throw new BusinessRuleException(ErrorCode.RENEWAL_NOT_ALLOWED,
+                                "Loan " + loanId + " was already returned and cannot be renewed");
+            }
+            if(current.isOverDue(today)) {
+                throw new BusinessRuleException(ErrorCode.RENEWAL_NOT_ALLOWED,
+                                "Loan " + loanId + " is overdue (due " + current.dueDate()
+                                        + ") and cannot be renewed");
+            }
+
+            if (current.renewals() >= maxRenewals) {
+                        throw new BusinessRuleException(ErrorCode.RENEWAL_NOT_ALLOWED,
+                                "Loan " + loanId + " has already been renewed " + current.renewals()
+                                        + " time(s) (maximum " + maxRenewals + ")");
+                    }
+                    return current.markRenewed(current.dueDate().plusDays(renewalDays));
+        })
+                .orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
+    }
 }
