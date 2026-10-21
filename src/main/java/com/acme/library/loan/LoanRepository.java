@@ -2,6 +2,7 @@ package com.acme.library.loan;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 public interface LoanRepository {
     
@@ -12,4 +13,6 @@ public interface LoanRepository {
     List<Loan> findAll();
 
     List<Loan> findActvieMemberById(long memberId);
+
+    Optional<Loan> update(long id, UnaryOperator<Loan> change);
 }

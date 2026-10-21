@@ -4,6 +4,10 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.temporal.ChronoUnit;
+
 import org.springframework.stereotype.Service;
 
 import com.acme.library.book.BookService;
@@ -51,13 +55,36 @@ public class LoanService {
         }
 
         try {
-            Loan loan = new Loan(0, bookId, memberId, today, today.plusDays(libraryProperties.loan().periodDays()), null, 0);
+            Loan loan = new Loan(0, bookId, memberId, today, today.plusDays(libraryProperties.loan().periodDays()), null, 0, null);
             return loanRepository.insert(loan);
         } catch (RuntimeException e) {
             undo(e, () -> bookService.releaseCopy(bookId));
             undo(e, () -> memberService.releaseLoanSlot(memberId));
             throw e;
         }
+    }
+
+    public Loan returnLoan(long loanId) {
+        LocalDate today = LocalDate.now(clock);
+
+        BigDecimal feePerDay = libraryProperties.loan().lateFeePerDay();
+
+        Loan closed = loanRepository.update(loanId, current -> {
+            if(!current.isActive()) {
+                throw new BusinessRuleException(ErrorCode.LOAN_ALREADY_RETURNED, "Loan " + loanId + " has already been returned");
+            }
+            return current.markReturned(today, lateFee(current.dueDate(), today, feePerDay));
+        }).orElseThrow(() -> new ResourceNotFoundException("Loan", loanId));
+
+        bookService.releaseCopy(closed.bookId());
+        memberService.releaseLoanSlot(closed.memberId());
+
+        return closed;
+    }
+
+    private static BigDecimal lateFee(LocalDate dueDate, LocalDate returnedOn, BigDecimal perDay) {
+        long overdueDays = Math.max(0, ChronoUnit.DAYS.between(dueDate, returnedOn));
+        return perDay.multiply(BigDecimal.valueOf(overdueDays)).setScale(2, RoundingMode.HALF_UP);
     }
 
     public Loan findById(long id) {

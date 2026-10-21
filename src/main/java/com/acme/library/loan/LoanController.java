@@ -39,4 +39,9 @@ public class LoanController {
     public LoanResponse get(@PathVariable long id) {
         return LoanResponse.from(loanService.findById(id), LocalDate.now(clock));
     }
+
+    @PostMapping("/{id}/return")
+    public LoanResponse returnLoan(@PathVariable long id) {
+        return LoanResponse.from(loanService.returnLoan(id), LocalDate.now(clock));
+    }
 }
