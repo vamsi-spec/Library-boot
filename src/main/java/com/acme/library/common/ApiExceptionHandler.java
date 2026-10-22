@@ -43,6 +43,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", "An unexpected error occurred", ErrorCode.INTERNAL_ERROR, request);
     }
 
+    @ExceptionHandler(InvalidRequestException.class)
+    public ProblemDetail handleInvalidRequest(InvalidRequestException ex, HttpServletRequest request) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", ex.getMessage(), ErrorCode.INVALID_REQUEST, request);
+    }
+
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         Map<String, String> errors = new LinkedHashMap<>();

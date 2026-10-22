@@ -13,14 +13,18 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.acme.library.common.ApiPaths;
+import com.acme.library.common.PageResponse;
+
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/members")
+@RequestMapping(ApiPaths.v1 + "/members")
 public class MemberController {
     private MemberService memberService;
 
@@ -36,6 +40,16 @@ public class MemberController {
     @GetMapping("/{id}")
     public MemberResponse get(@PathVariable long id) {
         return MemberResponse.from(memberService.findById(id));
+    }
+
+    @GetMapping
+    public PageResponse<MemberResponse> list(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) MemberStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) List<String> sort) {
+        return memberService.search(name, status, page, size, sort).map(MemberResponse::from);
     }
 
     @PostMapping

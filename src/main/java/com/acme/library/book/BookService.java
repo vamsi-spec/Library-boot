@@ -1,12 +1,18 @@
 package com.acme.library.book;
 
 import java.time.Clock;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
 import com.acme.library.common.BusinessRuleException;
 import com.acme.library.common.ErrorCode;
+import com.acme.library.common.PageQuery;
+import com.acme.library.common.PageResponse;
+import com.acme.library.common.Paging;
 import com.acme.library.common.ResourceNotFoundException;
 
 @Service
@@ -18,6 +24,15 @@ public class BookService {
         this.bookRepository = bookRepository;
         this.clock = clock;
     }
+ 
+    private static final Map<String, Comparator<Book>> SORTS = Map.of(
+        "id", Comparator.comparingLong(Book :: id),
+        "isbn", Comparator.comparing(Book :: isbn),
+        "title", Comparator.comparing(Book :: title, String.CASE_INSENSITIVE_ORDER),
+        "author", Comparator.comparing(Book::author, String.CASE_INSENSITIVE_ORDER),
+        "totalCopies", Comparator.comparingInt(Book::totalCopies),
+        "availableCopies", Comparator.comparingInt(Book::availableCopies)
+    );
 
     public Book create(CreateBookRequest request) {
         Book book = new Book(0L, request.isbn(), request.title(), request.author(), request.totalCopies(), request.totalCopies(), clock.instant());
@@ -35,6 +50,24 @@ public class BookService {
 
     public List<Book> findAll() {
         return bookRepository.findAll();
+    }
+
+    public PageResponse<Book> search(String title, String author, Boolean available, int page, int size, List<String> sort) {
+        PageQuery query = PageQuery.of(page, size, sort, SORTS.keySet(), "id");
+        String titleFilter = normalize(title);
+        String authorFilter = normalize(author);
+
+        List<Book> matches = bookRepository.findAll().stream()
+        .filter(b -> titleFilter == null || b.title().toLowerCase(Locale.ROOT).contains(titleFilter))
+        .filter(b -> authorFilter == null || b.author().toLowerCase(Locale.ROOT).contains(authorFilter))
+        .filter(b -> available == null || b.isAvailable() == available)
+        .toList();
+
+        return Paging.paginate(matches, query, SORTS);
+    }
+
+    private static String normalize(String text) {
+        return (text == null || text.isBlank()) ? null : text.strip().toLowerCase(Locale.ROOT);
     }
 
     public Book replace(long id, UpdateBookRequest request) {

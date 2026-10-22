@@ -2,8 +2,9 @@ package com.acme.library.loan;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
-
+import java.util.Map;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.temporal.ChronoUnit;
@@ -13,6 +14,9 @@ import org.springframework.stereotype.Service;
 import com.acme.library.book.BookService;
 import com.acme.library.common.BusinessRuleException;
 import com.acme.library.common.ErrorCode;
+import com.acme.library.common.PageQuery;
+import com.acme.library.common.PageResponse;
+import com.acme.library.common.Paging;
 import com.acme.library.common.ResourceNotFoundException;
 import com.acme.library.config.LibraryProperties;
 import com.acme.library.member.MemberService;
@@ -98,6 +102,27 @@ public class LoanService {
             .filter(loan -> status == null || loan.status() == status)
             .filter(loan -> overdue == null || loan.isOverDue(today))
             .toList();
+    }
+
+        private static final Map<String, Comparator<Loan>> SORTS = Map.of(
+            "id", Comparator.comparingLong(Loan::id),
+            "borrowedOn", Comparator.comparing(Loan::borrowedOn),
+            "dueDate", Comparator.comparing(Loan::dueDate),
+            "memberId", Comparator.comparingLong(Loan::memberId),
+            "bookId", Comparator.comparingLong(Loan::bookId));
+
+    public PageResponse<Loan> search(Long memberId, Long bookId, LoanStatus status, Boolean overdue,
+                                     int page, int size, List<String> sort) {
+        PageQuery query = PageQuery.of(page, size, sort, SORTS.keySet(), "-id");
+        LocalDate today = LocalDate.now(clock);
+
+        List<Loan> matches = loanRepository.findAll().stream()
+                .filter(loan -> memberId == null || loan.memberId() == memberId)
+                .filter(loan -> bookId == null || loan.bookId() == bookId)
+                .filter(loan -> status == null || loan.status() == status)
+                .filter(loan -> overdue == null || loan.isOverDue(today) == overdue)
+                .toList();
+        return Paging.paginate(matches, query, SORTS);
     }
 
     private void undo(RuntimeException original, Runnable compensation) {

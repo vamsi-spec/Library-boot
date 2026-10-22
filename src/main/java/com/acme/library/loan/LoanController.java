@@ -15,12 +15,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.acme.library.common.ApiPaths;
+import com.acme.library.common.PageResponse;
+
 import jakarta.validation.Valid;
 
 
 
 @RestController
-@RequestMapping("/loans")
+@RequestMapping(ApiPaths.v1 + "/loans")
 public class LoanController {
     private final LoanService loanService;
     private final Clock clock;
@@ -45,6 +48,20 @@ public class LoanController {
     @PostMapping("/{id}/return")
     public LoanResponse returnLoan(@PathVariable long id) {
         return LoanResponse.from(loanService.returnLoan(id), LocalDate.now(clock));
+    }
+
+    @GetMapping
+    public PageResponse<LoanResponse> list(
+            @RequestParam(required = false) Long memberId,
+            @RequestParam(required = false) Long bookId,
+            @RequestParam(required = false) LoanStatus status,
+            @RequestParam(required = false) Boolean overdue,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) List<String> sort) {
+        LocalDate today = LocalDate.now(clock);
+        return loanService.search(memberId, bookId, status, overdue, page, size, sort)
+                .map(loan -> LoanResponse.from(loan, today));
     }
 
     @GetMapping 
