@@ -63,13 +63,18 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(ex, body, headers, status, request);
     }
 
-    private ProblemDetail problem(HttpStatus status, String title, String detail, ErrorCode code, HttpServletRequest request) {
+    private ProblemDetail problem(HttpStatusCode status, String title, String detail, ErrorCode code, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
 
         problem.setTitle(title);
         problem.setProperty("code",code);
         problem.setInstance(URI.create(request.getRequestURI()));
         return problem;
+    }
+
+    @ExceptionHandler(UnprocessableRequestException.class)
+    public ProblemDetail handleUnprocessable(UnprocessableRequestException ex, HttpServletRequest request) {
+        return problem(HttpStatusCode.valueOf(422), "Request cannot be processed", ex.getMessage(), ex.getCode(), request);
     }
 
 
