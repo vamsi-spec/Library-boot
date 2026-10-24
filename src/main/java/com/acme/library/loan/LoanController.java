@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,10 +35,17 @@ public class LoanController {
     }
 
     @PostMapping
-    public ResponseEntity<LoanResponse> borrow(@Valid @RequestBody LoanRequest request) {
-        Loan loan = loanService.borrow(request);
+    public ResponseEntity<LoanResponse> borrow(@Valid @RequestBody LoanRequest request, @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey) {
+        BorrowResult result = loanService.borrow(request, idempotencyKey);
+        Loan loan = result.loan();
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(loan.id()).toUri();
-        return ResponseEntity.created(location).body(LoanResponse.from(loan, LocalDate.now(clock)));
+
+        ResponseEntity.BodyBuilder response = ResponseEntity.created(location);
+
+        if (result.replayed()) {
+            response.header("Idempotency-Replayed", "true");
+        }
+        return response.body(LoanResponse.from(loan, LocalDate.now(clock)));
     }
 
     @GetMapping("/{id}")

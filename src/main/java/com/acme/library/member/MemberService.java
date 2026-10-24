@@ -2,13 +2,18 @@ package com.acme.library.member;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
 import com.acme.library.common.BusinessRuleException;
 import com.acme.library.common.ErrorCode;
+import com.acme.library.common.PageQuery;
+import com.acme.library.common.PageResponse;
+import com.acme.library.common.Paging;
 import com.acme.library.common.ResourceNotFoundException;
 
 @Service
@@ -20,6 +25,13 @@ public class MemberService {
         this.memberRepository = memberRepository;
         this.clock = clock;
     }
+
+    private static final Map<String, Comparator<Member>> SORTS = Map.of(
+            "id", Comparator.comparingLong(Member::id),
+            "name", Comparator.comparing(Member::name, String.CASE_INSENSITIVE_ORDER),
+            "email", Comparator.comparing(Member::email),
+            "status", Comparator.comparing(Member::status),
+            "activeLoans", Comparator.comparingInt(Member::activeLoans));
 
     public Member create(CreateMemberRequest request) {
         Member member = new Member(0L, request.name().strip(), request.email().toLowerCase(Locale.ROOT), MemberStatus.ACTIVE, 0, Instant.now(clock));
@@ -40,6 +52,19 @@ public class MemberService {
 
     public Member replace(long id, UpdateMemberRequest request) {
         return memberRepository.update(id, current -> new Member(current.id(), request.name().strip(), current.email(), request.status(), current.activeLoans(), current.joinedAt())).orElseThrow(() -> new ResourceNotFoundException("Member", id));
+    }
+
+    public PageResponse<Member> search(String name, MemberStatus status, int page, int size, List<String> sort) {
+        PageQuery query = PageQuery.of(size, page,sort, SORTS.keySet(), "id");
+
+        String nameFilter = (name == null || name.isBlank()) ? null : name.strip().toLowerCase(Locale.ROOT);
+
+        List<Member> matches = memberRepository.findAll().stream()
+                .filter(m -> nameFilter == null || m.name().toLowerCase(Locale.ROOT).contains(nameFilter))
+                .filter(m -> status == null || m.status() == status)
+                .toList();
+
+        return Paging.paginate(matches, query, SORTS);
     }
 
     public Member patch(long id, MemberPatch patch) {

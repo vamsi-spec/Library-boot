@@ -14,12 +14,16 @@ import org.springframework.stereotype.Service;
 import com.acme.library.book.BookService;
 import com.acme.library.common.BusinessRuleException;
 import com.acme.library.common.ErrorCode;
+import com.acme.library.common.IdempotencyStore;
 import com.acme.library.common.PageQuery;
 import com.acme.library.common.PageResponse;
 import com.acme.library.common.Paging;
 import com.acme.library.common.ResourceNotFoundException;
 import com.acme.library.config.LibraryProperties;
 import com.acme.library.member.MemberService;
+import com.acme.library.common.InvalidRequestException;
+import com.acme.library.common.UnprocessableRequestException;
+import java.util.regex.Pattern;
 
 @Service
 public class LoanService {
@@ -28,16 +32,19 @@ public class LoanService {
     private final MemberService memberService;
     private final LibraryProperties libraryProperties;
     private final Clock clock;
+    private final IdempotencyStore idempotencyStore;
+    private static final Pattern KEY_FORMAT = Pattern.compile("[A-Za-z0-9_-]{8,64}");
 
-    public LoanService(LoanRepository loanRepository, BookService bookService, MemberService memberService, LibraryProperties libraryProperties, Clock clock) {
+    public LoanService(LoanRepository loanRepository, BookService bookService, MemberService memberService, LibraryProperties libraryProperties, Clock clock, IdempotencyStore idempotencyStore) {
         this.loanRepository = loanRepository;
         this.bookService = bookService;
         this.memberService = memberService;
         this.libraryProperties = libraryProperties;
         this.clock = clock;
+        this.idempotencyStore = idempotencyStore;
     }
 
-    public Loan borrow(LoanRequest request) {
+    public Loan borrowOnce(LoanRequest request) {
         long memberId = request.memberId();
         long bookId = request.bookId();
         LocalDate today = LocalDate.now(clock);
@@ -66,6 +73,39 @@ public class LoanService {
             undo(e, () -> memberService.releaseLoanSlot(memberId));
             throw e;
         }
+    }
+
+    public BorrowResult borrow(LoanRequest request, String idempotencyKey) {
+        if(idempotencyKey == null) {
+            return new BorrowResult(borrowOnce(request), false);
+        }
+
+        if(!KEY_FORMAT.matcher(idempotencyKey).matches()) {
+            throw new InvalidRequestException("Idempotency-Key must be 8 to 64 characters: letters, digits, '-' or '_'");
+        }
+
+        String fingerprint = "member=" + request.memberId() + ";book=" + request.bookId();
+        IdempotencyStore.Claim claim = idempotencyStore.claim(idempotencyKey, fingerprint);
+
+        return switch (claim.status()) {
+            case REPLAY -> new BorrowResult(findById(claim.resultId()), true);
+            case IN_PROGRESS -> throw new BusinessRuleException(ErrorCode.IDEMPOTENCY_KEY_IN_USE, "A request with this Idempotency-Key is still being processed");
+
+            case MISMATCH -> throw new UnprocessableRequestException(ErrorCode.IDEMPOTENCY_KEY_REUSED, "This Idempotency-Key was already used for a different request");
+
+            case PROCEED -> {
+                try {
+                    Loan loan = borrowOnce(request);
+                    idempotencyStore.complete(idempotencyKey, loan.id());
+                    yield new BorrowResult(loan, false);
+                } catch (RuntimeException e) {
+                    idempotencyStore.release(idempotencyKey);     
+                    throw e;
+                }
+            }
+        };
+
+        
     }
 
     public Loan returnLoan(long loanId) {
